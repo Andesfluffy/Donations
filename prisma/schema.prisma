@@ -1,0 +1,559 @@
+// Catholic Crisis Relief — data model
+//
+// Design rule that governs this whole file: public financial figures are never
+// stored as prose. `raised` sums Donation rows, `disbursed` sums Disbursement
+// rows, and the overhead ratio falls out of AllocationCategory.isOverhead.
+// Nothing on the site may render a currency figure that did not come from here.
+//
+// Money is stored as integer minor units (cents/pence). Line items use Int;
+// cached aggregates use BigInt because sums outgrow Int's ~$21.4M ceiling.
+
+generator client {
+  provider = "prisma-client-js"
+  // Generate into the repo rather than node_modules: survives reinstalls,
+  // keeps types resolvable on Windows, and makes the client explicit in imports.
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7 moved connection URLs out of the schema. Migrations read the URL
+// from prisma.config.ts; the runtime client gets it from the driver adapter in
+// src/lib/db.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  FUNDED
+  CLOSED
+}
+
+enum CrisisType {
+  CONFLICT
+  FAMINE
+  DROUGHT
+  EARTHQUAKE
+  FLOOD
+  STORM
+  DISPLACEMENT
+  DISEASE
+  PERSECUTION
+  OTHER
+}
+
+enum Urgency {
+  CRITICAL
+  HIGH
+  NORMAL
+}
+
+enum PartnerType {
+  CARITAS_NATIONAL
+  DIOCESE
+  RELIGIOUS_ORDER
+  PARISH
+  NGO
+}
+
+enum DonationType {
+  ONE_TIME
+  RECURRING
+}
+
+enum DonationStatus {
+  PENDING
+  SUCCEEDED
+  REFUNDED
+  FAILED
+}
+
+/// PLANNED money is committed but not yet moved, so it is excluded from
+/// `disbursed`. Everything from SENT onward counts as out the door.
+enum DisbursementStatus {
+  PLANNED
+  SENT
+  CONFIRMED
+  REPORTED
+}
+
+enum DocumentType {
+  RECEIPT
+  INVOICE
+  FIELD_REPORT
+  PHOTO
+  AUDIT
+  AGREEMENT
+}
+
+enum FeedSource {
+  RELIEFWEB
+  VATICAN_NEWS
+  CARITAS
+  EDITORIAL
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum UserRole {
+  ADMIN
+  FINANCE
+  EDITOR
+  VIEWER
+}
+
+// ---------------------------------------------------------------------------
+// Campaigns and partners
+// ---------------------------------------------------------------------------
+
+model Campaign {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  title       String
+  summary     String         @db.Text
+  story       String         @db.Text
+  status      CampaignStatus @default(DRAFT)
+  urgency     Urgency        @default(NORMAL)
+  crisisType  CrisisType
+  featured    Boolean        @default(false)
+
+  /// ISO 3166-1 alpha-2. Region is a display grouping ("East Africa").
+  countryCode String         @db.Char(2)
+  countryName String
+  region      String?
+
+  goalCents   Int
+  currency    String         @default("USD") @db.Char(3)
+
+  coverImageUrl String?
+  coverImageAlt String?
+
+  /// Links this appeal to the ReliefWeb disaster it responds to, so ingested
+  /// situation reports can be attached automatically.
+  reliefwebDisasterId String?
+
+  partnerId String?
+  partner   Partner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  startedAt DateTime  @default(now())
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  allocations   CampaignAllocation[]
+  donations     Donation[]
+  disbursements Disbursement[]
+  metrics       ImpactMetric[]
+  posts         NewsPost[]
+  intentions    PrayerIntention[]
+  financials    CampaignFinancials?
+
+  @@index([status, urgency])
+  @@index([countryCode])
+  @@index([crisisType])
+  @@index([reliefwebDisasterId])
+}
+
+/// The organisation that actually delivers the aid. Publishing who receives the
+/// money — and when we vetted them — is half of what makes the ledger credible.
+model Partner {
+  id                 String      @id @default(cuid())
+  slug               String      @unique
+  name               String
+  type               PartnerType
+  countryCode        String      @db.Char(2)
+  countryName        String
+  description        String?     @db.Text
+  websiteUrl         String?
+  logoUrl            String?
+  registrationNumber String?
+
+  vettedAt    DateTime?
+  vettingNotes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns     Campaign[]
+  disbursements Disbursement[]
+}
+
+model AllocationCategory {
+  id    String  @id @default(cuid())
+  slug  String  @unique
+  name  String
+  icon  String?
+  sortOrder Int  @default(0)
+
+  /// Drives the publicly disclosed overhead ratio. Set on admin, governance,
+  /// fundraising — anything that is not programme delivery.
+  isOverhead Boolean @default(false)
+
+  allocations   CampaignAllocation[]
+  disbursements Disbursement[]
+}
+
+/// The *plan*: how we said we would split this appeal's funds. Compared against
+/// actual Disbursement rows on the campaign page so promise and delivery sit
+/// side by side.
+model CampaignAllocation {
+  id             String @id @default(cuid())
+  campaignId     String
+  categoryId     String
+  plannedPercent Int
+
+  campaign Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  category AllocationCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([campaignId, categoryId])
+}
+
+// ---------------------------------------------------------------------------
+// Giving
+// ---------------------------------------------------------------------------
+
+model Donor {
+  id               String  @id @default(cuid())
+  email            String  @unique
+  name             String?
+  stripeCustomerId String? @unique
+
+  /// ISO country used to pick the right receipt language (Gift Aid, 501(c)(3)).
+  taxCountry       String? @db.Char(2)
+  giftAidDeclared  Boolean @default(false)
+
+  /// Donor-level default. Individual gifts can still opt out via Donation.
+  isAnonymous      Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  donations Donation[]
+
+  @@index([stripeCustomerId])
+}
+
+/// Written exclusively by the Stripe webhook. Nothing else in the codebase may
+/// create a row here — the success redirect is not a reliable signal, donors
+/// close the tab.
+model Donation {
+  id         String         @id @default(cuid())
+  donorId    String
+  campaignId String?
+
+  /// Gross charged, Stripe's cut, and what actually reaches the fund.
+  /// netCents is the only figure that counts toward a campaign's total.
+  amountCents Int
+  feeCents    Int    @default(0)
+  netCents    Int
+  currency    String @db.Char(3)
+
+  /// True when the donor opted to cover processing so 100% reaches the field.
+  feeCovered  Boolean @default(false)
+
+  type   DonationType   @default(ONE_TIME)
+  status DonationStatus @default(PENDING)
+
+  stripePaymentIntentId String? @unique
+  stripeSubscriptionId  String?
+  stripeChargeId        String?
+
+  /// Unguessable short ref for /give/receipt/[ref]. Not sequential — donation
+  /// counts should not be inferable from a receipt link.
+  publicRef String @unique
+
+  message     String? @db.Text
+  intention   String?
+  inMemoryOf  String?
+  isAnonymous Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  refundedAt DateTime?
+
+  donor    Donor     @relation(fields: [donorId], references: [id], onDelete: Restrict)
+  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, status])
+  @@index([donorId])
+  @@index([createdAt])
+  @@index([stripeSubscriptionId])
+}
+
+/// Webhook idempotency. Stripe retries, and retries must not double-count money.
+model StripeEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+  payload     Json?
+}
+
+// ---------------------------------------------------------------------------
+// Spending — the ledger
+// ---------------------------------------------------------------------------
+
+/// Append-only. A mistake is corrected by inserting an offsetting row with
+/// `correctsId` pointing at the original, never by editing history. The admin
+/// UI enforces this and AuditLog records who did it.
+model Disbursement {
+  id         String             @id @default(cuid())
+  campaignId String
+  partnerId  String
+  categoryId String
+
+  amountCents Int
+  currency    String             @db.Char(3)
+  status      DisbursementStatus @default(PLANNED)
+
+  /// Bank/wire reference so an auditor can tie a row to a statement.
+  reference   String?
+  description String  @db.Text
+
+  disbursedAt DateTime
+  createdAt   DateTime @default(now())
+
+  /// Set on a correcting entry; the original row stays visible.
+  correctsId String?
+  corrects   Disbursement?  @relation("Correction", fields: [correctsId], references: [id], onDelete: SetNull)
+  correctedBy Disbursement[] @relation("Correction")
+
+  campaign  Campaign           @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  partner   Partner            @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  category  AllocationCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  documents DisbursementDocument[]
+  metrics   ImpactMetric[]
+
+  @@index([campaignId, status])
+  @@index([partnerId])
+  @@index([disbursedAt])
+}
+
+model DisbursementDocument {
+  id             String       @id @default(cuid())
+  disbursementId String
+  type           DocumentType
+  title          String
+  fileUrl        String
+  fileSizeBytes  Int?
+  mimeType       String?
+  uploadedAt     DateTime     @default(now())
+
+  disbursement Disbursement @relation(fields: [disbursementId], references: [id], onDelete: Cascade)
+
+  @@index([disbursementId])
+}
+
+/// Outcomes, not spend. Every metric must cite where the number came from —
+/// an unverified impact claim is worse than none.
+model ImpactMetric {
+  id             String  @id @default(cuid())
+  campaignId     String
+  disbursementId String?
+
+  label String
+  value Int
+  unit  String
+
+  verifiedAt DateTime?
+  sourceUrl  String?
+
+  createdAt DateTime @default(now())
+
+  campaign     Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  disbursement Disbursement? @relation(fields: [disbursementId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+}
+
+/// Denormalised totals so campaign pages stay fast. Recomputed from source rows
+/// on every donation/disbursement write — never edited by hand, and always
+/// reproducible by rerunning the aggregation.
+model CampaignFinancials {
+  campaignId String @id
+
+  raisedCents        BigInt @default(0)
+  disbursedCents     BigInt @default(0)
+  overheadCents      BigInt @default(0)
+  donationCount      Int    @default(0)
+  recurringCount     Int    @default(0)
+
+  recomputedAt DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// News and crisis ingestion
+// ---------------------------------------------------------------------------
+
+/// Raw ingested items land here and stop. An editor reviews and promotes; the
+/// site never republishes a third-party headline automatically.
+model CrisisFeedItem {
+  id         String     @id @default(cuid())
+  source     FeedSource
+  externalId String
+  title      String
+  url        String
+  summary    String?    @db.Text
+  imageUrl   String?
+  publishedAt DateTime
+
+  countryCodes String[]
+  disasterTypes String[]
+
+  reviewedAt      DateTime?
+  dismissedAt     DateTime?
+  promotedToPostId String?  @unique
+
+  fetchedAt DateTime @default(now())
+
+  promotedToPost NewsPost? @relation(fields: [promotedToPostId], references: [id], onDelete: SetNull)
+
+  @@unique([source, externalId])
+  @@index([publishedAt])
+  @@index([reviewedAt])
+}
+
+model NewsPost {
+  id      String     @id @default(cuid())
+  slug    String     @unique
+  title   String
+  excerpt String     @db.Text
+  body    String     @db.Text
+  status  PostStatus @default(DRAFT)
+
+  coverImageUrl String?
+  coverImageAlt String?
+
+  /// EDITORIAL for our own field reports; otherwise the feed it came from,
+  /// with attribution rendered on the page.
+  source        FeedSource @default(EDITORIAL)
+  sourceUrl     String?
+  sourceName    String?
+
+  authorId    String?
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  author    User?           @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  feedItem  CrisisFeedItem?
+
+  @@index([status, publishedAt])
+  @@index([campaignId])
+}
+
+/// Prayer wall tied to live appeals — the part of this site that is Catholic
+/// rather than merely charitable.
+model PrayerIntention {
+  id         String  @id @default(cuid())
+  campaignId String?
+  name       String?
+  text       String  @db.Text
+  prayerCount Int    @default(0)
+  approvedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, approvedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Auth (better-auth) and audit
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  role          UserRole @default(VIEWER)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions  Session[]
+  accounts  Account[]
+  posts     NewsPost[]
+  auditLogs AuditLog[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+/// Every mutation to campaigns, disbursements and documents. Without this the
+/// append-only ledger is a convention; with it, it is evidence.
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

@@ -1,0 +1,354 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Catholic Crisis Relief — design tokens
+
+   Colour is expressed as semantic CSS variables rather than Tailwind palette
+   names, so light/dark and the liturgical season tint all flip by reassigning
+   variables. Components never name a raw colour.
+
+   The palette is drawn from church interiors rather than "charity website":
+   Marian blue, sacristy gold, and a warm paper ground instead of clinical
+   white. Restraint is the point — this site asks people for money during
+   famines, so it should feel closer to a missal than a fundraising banner.
+--------------------------------------------------------------------------- */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  color-scheme: light;
+
+  /* Grounds and surfaces — warm, never pure white */
+  --bg: #fbf9f5;
+  --surface: #ffffff;
+  --surface-sunken: #f4f1ea;
+  --surface-raised: #ffffff;
+
+  /* Ink */
+  --ink: #1a1714;
+  --ink-muted: #5c554b;
+  --ink-subtle: #857d71;
+  --ink-inverse: #fbf9f5;
+
+  /* Marian blue — the primary voice */
+  --primary: #16325c;
+  --primary-hover: #1e4478;
+  --primary-active: #0f2442;
+  --primary-soft: #e8edf6;
+  --primary-ink: #ffffff;
+
+  /* Sacristy gold — accent, used sparingly and never for body text */
+  --accent: #a6762c;
+  --accent-hover: #8d6323;
+  --accent-soft: #f8f0dd;
+  --accent-ink: #ffffff;
+
+  /* Borders and lines */
+  --line: #e3ddd1;
+  --line-strong: #cfc7b7;
+
+  /* Status — muted, not alarm-bell */
+  --critical: #9c2b2b;
+  --critical-soft: #f9e9e7;
+  --success: #2c6a4c;
+  --success-soft: #e6f1ea;
+  --warning: #8a6212;
+  --warning-soft: #fbf1da;
+
+  /* Liturgical season tint. Set by <html data-season>; defaults to Ordinary
+     Time green. Used only for slim accents — a rule under the masthead, a
+     season label — never for large fills. */
+  --season: #2e6b4f;
+  --season-soft: #e8f0eb;
+
+  --focus: #16325c;
+
+  --radius-sm: 0.25rem;
+  --radius: 0.5rem;
+  --radius-lg: 0.875rem;
+
+  /* Shadows kept soft and warm; charity sites go wrong with hard drop shadows */
+  --shadow-sm: 0 1px 2px rgb(26 23 20 / 0.05);
+  --shadow: 0 2px 8px rgb(26 23 20 / 0.06), 0 1px 2px rgb(26 23 20 / 0.04);
+  --shadow-lg: 0 12px 32px rgb(26 23 20 / 0.10), 0 2px 6px rgb(26 23 20 / 0.05);
+}
+
+/* System-preference dark, unless the reader pinned light */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #14120f;
+    --surface: #1e1b17;
+    --surface-sunken: #100e0c;
+    --surface-raised: #26221d;
+
+    --ink: #f2ede4;
+    --ink-muted: #b3aa9c;
+    --ink-subtle: #8a8175;
+    --ink-inverse: #14120f;
+
+    --primary: #8fb0e0;
+    --primary-hover: #a8c3ea;
+    --primary-active: #7699c9;
+    --primary-soft: #1c2942;
+    --primary-ink: #0f1a2e;
+
+    --accent: #d9ae63;
+    --accent-hover: #e5be7c;
+    --accent-soft: #2e2517;
+    --accent-ink: #1a1204;
+
+    --line: #332e27;
+    --line-strong: #4a4339;
+
+    --critical: #e58b83;
+    --critical-soft: #35201e;
+    --success: #7fc0a0;
+    --success-soft: #17291f;
+    --warning: #d9b264;
+    --warning-soft: #2b2313;
+
+    --season: #7fc0a0;
+    --season-soft: #17291f;
+
+    --focus: #8fb0e0;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow: 0 2px 8px rgb(0 0 0 / 0.45), 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.35);
+  }
+}
+
+/* Explicit dark choice wins in both directions */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #14120f;
+  --surface: #1e1b17;
+  --surface-sunken: #100e0c;
+  --surface-raised: #26221d;
+
+  --ink: #f2ede4;
+  --ink-muted: #b3aa9c;
+  --ink-subtle: #8a8175;
+  --ink-inverse: #14120f;
+
+  --primary: #8fb0e0;
+  --primary-hover: #a8c3ea;
+  --primary-active: #7699c9;
+  --primary-soft: #1c2942;
+  --primary-ink: #0f1a2e;
+
+  --accent: #d9ae63;
+  --accent-hover: #e5be7c;
+  --accent-soft: #2e2517;
+  --accent-ink: #1a1204;
+
+  --line: #332e27;
+  --line-strong: #4a4339;
+
+  --critical: #e58b83;
+  --critical-soft: #35201e;
+  --success: #7fc0a0;
+  --success-soft: #17291f;
+  --warning: #d9b264;
+  --warning-soft: #2b2313;
+
+  --season: #7fc0a0;
+  --season-soft: #17291f;
+
+  --focus: #8fb0e0;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow: 0 2px 8px rgb(0 0 0 / 0.45), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.35);
+}
+
+/* Liturgical seasons. Applied as data-season on <html> from the server so the
+   first paint is already correct. */
+[data-season="advent"],
+[data-season="lent"] {
+  --season: #5b3a78;
+  --season-soft: #efe9f4;
+}
+[data-season="gaudete"],
+[data-season="laetare"] {
+  --season: #b06a86;
+  --season-soft: #f9edf1;
+}
+[data-season="christmas"],
+[data-season="easter"] {
+  --season: #a6762c;
+  --season-soft: #f8f0dd;
+}
+[data-season="passion"],
+[data-season="pentecost"] {
+  --season: #9c2b2b;
+  --season-soft: #f9e9e7;
+}
+[data-season="ordinary"] {
+  --season: #2e6b4f;
+  --season-soft: #e8f0eb;
+}
+
+[data-theme="dark"][data-season="advent"],
+[data-theme="dark"][data-season="lent"] {
+  --season: #b092cc;
+  --season-soft: #241a2e;
+}
+[data-theme="dark"][data-season="gaudete"],
+[data-theme="dark"][data-season="laetare"] {
+  --season: #d4a0b3;
+  --season-soft: #2e1f25;
+}
+[data-theme="dark"][data-season="christmas"],
+[data-theme="dark"][data-season="easter"] {
+  --season: #d9ae63;
+  --season-soft: #2e2517;
+}
+[data-theme="dark"][data-season="passion"],
+[data-theme="dark"][data-season="pentecost"] {
+  --season: #e58b83;
+  --season-soft: #35201e;
+}
+[data-theme="dark"][data-season="ordinary"] {
+  --season: #7fc0a0;
+  --season-soft: #17291f;
+}
+
+/* Map semantic tokens onto Tailwind utilities. `inline` keeps the var
+   reference in the generated CSS so runtime theme flips work. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-inverse: var(--ink-inverse);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-critical: var(--critical);
+  --color-critical-soft: var(--critical-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --color-season: var(--season);
+  --color-season-soft: var(--season-soft);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: var(--font-newsreader), ui-serif, Georgia, "Times New Roman", serif;
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow);
+  --shadow-lg: var(--shadow-lg);
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Headings carry the serif. Optical sizing matters at display sizes —
+     Newsreader is a variable font and this is most of why it looks expensive. */
+  h1, h2, h3, h4 {
+    font-family: var(--font-serif);
+    font-optical-sizing: auto;
+    letter-spacing: -0.011em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* One visible focus style everywhere. Never remove it. */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--ink);
+  }
+
+  /* Tabular figures for every money and count display, so digits do not
+     shimmy as live totals tick upward. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@layer utilities {
+  /* Hairline rule in the current liturgical colour — the season's only
+     structural appearance. */
+  .season-rule {
+    border-top: 2px solid var(--season);
+  }
+
+  .container-page {
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+    max-width: 75rem;
+  }
+
+  @media (min-width: 768px) {
+    .container-page {
+      padding-inline: 2rem;
+    }
+  }
+}
+
+/* Respect the reader. Motion is decoration here, never information. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
