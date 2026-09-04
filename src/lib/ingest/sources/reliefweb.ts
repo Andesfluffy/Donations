@@ -15,9 +15,14 @@ const BASE_URL = "https://api.reliefweb.int/v2";
  *    source rather than hammering an endpoint that will always refuse us.
  *
  * 2. The quota is 1,000 calls a day. That is generous for a cron running a
- *    handful of calls every six hours, and hopeless for fetching per page
- *    view — which is why ingestion writes to our own database and the site
- *    never calls ReliefWeb during a request.
+ *    handful of calls once a day, and hopeless for fetching per page view —
+ *    which is why ingestion writes to our own database and the site never
+ *    calls ReliefWeb during a request.
+ *
+ * The daily cadence is a Vercel Hobby limit, not a considered choice. It costs
+ * little here: the query below is a snapshot of currently-active disasters
+ * rather than a stream of new ones, so a slower cron means staler data, not
+ * missed items.
  */
 
 /** The API returns fields as arrays even when logically singular, and omits
