@@ -210,3 +210,189 @@ export async function recomputeCampaignFinancials(campaignId: string): Promise<v
     update: data,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Organisation-wide views, used by /transparency
+// ---------------------------------------------------------------------------
+
+/**
+ * Spend by category across every appeal. Unlike the per-campaign breakdown
+ * there is no single plan to compare against, so this reports actuals only.
+ */
+export async function getOrgBreakdown(): Promise<CategoryBreakdown[]> {
+  const spend = await db.disbursement.groupBy({
+    by: ["categoryId"],
+    where: { status: { in: SPENT } },
+    _sum: { amountCents: true },
+  });
+
+  const spendByCategory = new Map(
+    spend.map((row) => [row.categoryId, row._sum.amountCents ?? 0]),
+  );
+  const total = [...spendByCategory.values()].reduce((a, b) => a + b, 0);
+
+  const categories = await db.allocationCategory.findMany({
+    where: { id: { in: [...spendByCategory.keys()] } },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  return categories.map((category) => {
+    const actualCents = spendByCategory.get(category.id) ?? 0;
+    return {
+      categoryId: category.id,
+      slug: category.slug,
+      name: category.name,
+      icon: category.icon,
+      isOverhead: category.isOverhead,
+      plannedPercent: null,
+      actualCents,
+      actualPercent: total > 0 ? (actualCents / total) * 100 : 0,
+    };
+  });
+}
+
+export interface LedgerFilters {
+  campaignSlug?: string;
+  partnerSlug?: string;
+  categorySlug?: string;
+  /** Free-text over description, reference and partner name. */
+  query?: string;
+}
+
+export interface LedgerEntry {
+  id: string;
+  disbursedAt: Date;
+  amountCents: number;
+  currency: string;
+  description: string;
+  reference: string | null;
+  status: (typeof SPENT)[number] | DisbursementStatus;
+  correctsId: string | null;
+  campaignTitle: string;
+  campaignSlug: string;
+  categoryName: string;
+  partnerName: string;
+  partnerSlug: string;
+  documents: { id: string; type: string; title: string; fileUrl: string }[];
+}
+
+function ledgerWhere(filters: LedgerFilters) {
+  const query = filters.query?.trim();
+
+  return {
+    ...(filters.campaignSlug ? { campaign: { slug: filters.campaignSlug } } : {}),
+    ...(filters.partnerSlug ? { partner: { slug: filters.partnerSlug } } : {}),
+    ...(filters.categorySlug ? { category: { slug: filters.categorySlug } } : {}),
+    ...(query
+      ? {
+          OR: [
+            { description: { contains: query, mode: "insensitive" as const } },
+            { reference: { contains: query, mode: "insensitive" as const } },
+            { partner: { name: { contains: query, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
+  };
+}
+
+/**
+ * The public ledger across every appeal.
+ *
+ * PLANNED rows are included here, unlike in the spend totals: a commitment
+ * that has not yet moved is information a donor is entitled to see, as long as
+ * its status says so plainly.
+ */
+export async function getLedgerEntries(
+  filters: LedgerFilters = {},
+  { skip = 0, take = 50 }: { skip?: number; take?: number } = {},
+): Promise<{ entries: LedgerEntry[]; total: number; totalCents: number }> {
+  const where = ledgerWhere(filters);
+
+  const [rows, total, sum] = await Promise.all([
+    db.disbursement.findMany({
+      where,
+      orderBy: { disbursedAt: "desc" },
+      skip,
+      take,
+      include: {
+        campaign: { select: { title: true, slug: true } },
+        partner: { select: { name: true, slug: true } },
+        category: { select: { name: true } },
+        documents: { select: { id: true, type: true, title: true, fileUrl: true } },
+      },
+    }),
+    db.disbursement.count({ where }),
+    db.disbursement.aggregate({ where, _sum: { amountCents: true } }),
+  ]);
+
+  return {
+    entries: rows.map((row) => ({
+      id: row.id,
+      disbursedAt: row.disbursedAt,
+      amountCents: row.amountCents,
+      currency: row.currency,
+      description: row.description,
+      reference: row.reference,
+      status: row.status,
+      correctsId: row.correctsId,
+      campaignTitle: row.campaign.title,
+      campaignSlug: row.campaign.slug,
+      categoryName: row.category.name,
+      partnerName: row.partner.name,
+      partnerSlug: row.partner.slug,
+      documents: row.documents,
+    })),
+    total,
+    totalCents: sum._sum.amountCents ?? 0,
+  };
+}
+
+export interface MonthlyFlow {
+  /** First day of the month, UTC. */
+  month: Date;
+  raisedCents: number;
+  disbursedCents: number;
+}
+
+/**
+ * Money in against money out, by month. Shows whether funds are actually
+ * moving or accumulating — the question a pie chart of categories cannot
+ * answer.
+ */
+export async function getMonthlyFlow(months = 12): Promise<MonthlyFlow[]> {
+  const since = new Date();
+  since.setUTCMonth(since.getUTCMonth() - (months - 1), 1);
+  since.setUTCHours(0, 0, 0, 0);
+
+  const [raised, disbursed] = await Promise.all([
+    db.$queryRaw<{ month: Date; total: bigint }[]>`
+      SELECT date_trunc('month', "createdAt") AS month,
+             COALESCE(SUM("netCents"), 0)::bigint AS total
+      FROM "Donation"
+      WHERE status = 'SUCCEEDED' AND "createdAt" >= ${since}
+      GROUP BY 1 ORDER BY 1`,
+    db.$queryRaw<{ month: Date; total: bigint }[]>`
+      SELECT date_trunc('month', "disbursedAt") AS month,
+             COALESCE(SUM("amountCents"), 0)::bigint AS total
+      FROM "Disbursement"
+      WHERE status IN ('SENT', 'CONFIRMED', 'REPORTED') AND "disbursedAt" >= ${since}
+      GROUP BY 1 ORDER BY 1`,
+  ]);
+
+  const key = (d: Date) => d.toISOString().slice(0, 7);
+  const raisedByMonth = new Map(raised.map((r) => [key(r.month), Number(r.total)]));
+  const disbursedByMonth = new Map(disbursed.map((r) => [key(r.month), Number(r.total)]));
+
+  // Emit every month in range, including empty ones, so the series has no gaps.
+  const series: MonthlyFlow[] = [];
+  for (let i = 0; i < months; i++) {
+    const month = new Date(Date.UTC(since.getUTCFullYear(), since.getUTCMonth() + i, 1));
+    series.push({
+      month,
+      raisedCents: raisedByMonth.get(key(month)) ?? 0,
+      disbursedCents: disbursedByMonth.get(key(month)) ?? 0,
+    });
+  }
+
+  return series;
+}

@@ -69,9 +69,11 @@ export default function RootLayout({
       className={`${inter.variable} ${newsreader.variable}`}
       suppressHydrationWarning
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-      </head>
+      {/* Must run before first paint, so it is a direct child of <html> which
+          Next hoists into the document head. There is no `app/head.tsx` in the
+          App Router — that convention was removed in Next 13.2, and a file by
+          that name is silently ignored. */}
+      <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       <body className="min-h-dvh bg-bg text-ink antialiased">
         <a
           href="#main"

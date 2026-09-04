@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, FileText, ReceiptText, ScrollText } from "lucide-react";
 
 import { AppealCard, type AppealCardData } from "@/components/appeal-card";
-import { ButtonLink } from "@/components/ui/button";
+import { HomeHero } from "@/components/home-hero";
 import { db } from "@/lib/db";
 import { getOrgFinancials } from "@/lib/finance";
 import { formatMoneyCompact, formatCount } from "@/lib/money";
@@ -56,34 +56,7 @@ export default async function HomePage() {
       {/* ---------------------------------------------------------------- */}
       {/* Hero                                                             */}
       {/* ---------------------------------------------------------------- */}
-      <section className="border-b border-line bg-surface">
-        <div className="container-page py-20 md:py-28">
-          <div className="max-w-3xl">
-            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-season">
-              Emergency relief · {new Date().getFullYear()}
-            </p>
-
-            <h1 className="mt-5 font-serif text-4xl leading-[1.1] font-semibold tracking-tight text-ink md:text-6xl">
-              Give where it is needed most — and see exactly where it went.
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-muted">
-              We fund Catholic partners already working inside the world&rsquo;s
-              hardest places. Every appeal publishes a dated ledger of what was
-              sent, to whom, and what it bought — with the receipts attached.
-            </p>
-
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <ButtonLink href="/give" size="lg">
-                Make a donation
-              </ButtonLink>
-              <ButtonLink href="/transparency" variant="outline" size="lg">
-                See the ledger
-              </ButtonLink>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HomeHero year={new Date().getFullYear()} />
 
       {/* ---------------------------------------------------------------- */}
       {/* Live totals — every figure derived from lib/finance.ts           */}

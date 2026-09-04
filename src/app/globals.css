@@ -63,6 +63,20 @@
 
   --focus: #16325c;
 
+  /* Modal scrim. Deliberately not derived from --ink: in dark mode --ink is a
+     pale cream, so an ink-tinted scrim would *lighten* the page behind an
+     overlay instead of dimming it. */
+  --scrim: rgb(26 23 20 / 0.55);
+
+  /* Chart series. NOT the UI --primary/--accent: those are chosen for text and
+     buttons, and as data marks the deep Marian blue falls outside the OKLCH
+     lightness band and under the chroma floor (it reads gray). These steps are
+     validated for CVD separation and contrast against the chart surface.
+     Series order is fixed: 1 = money received, 2 = money delivered. */
+  --chart-1: #2c5fa8;
+  --chart-2: #a6762c;
+  --chart-grid: #e3ddd1;
+
   --radius-sm: 0.25rem;
   --radius: 0.5rem;
   --radius-lg: 0.875rem;
@@ -114,6 +128,15 @@
 
     --focus: #8fb0e0;
 
+    --scrim: rgb(0 0 0 / 0.66);
+
+    /* Dark steps are selected and validated against the dark surface, not
+       lightened from the light ones — the dark band is L 0.48–0.67, well below
+       the pale UI tokens. */
+    --chart-1: #4a82cc;
+    --chart-2: #bd8b32;
+    --chart-grid: #332e27;
+
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow: 0 2px 8px rgb(0 0 0 / 0.45), 0 1px 2px rgb(0 0 0 / 0.3);
     --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.35);
@@ -159,6 +182,12 @@
   --season-soft: #17291f;
 
   --focus: #8fb0e0;
+
+  --scrim: rgb(0 0 0 / 0.66);
+
+  --chart-1: #4a82cc;
+  --chart-2: #bd8b32;
+  --chart-grid: #332e27;
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow: 0 2px 8px rgb(0 0 0 / 0.45), 0 1px 2px rgb(0 0 0 / 0.3);
@@ -253,6 +282,12 @@
 
   --color-season: var(--season);
   --color-season-soft: var(--season-soft);
+
+  --color-scrim: var(--scrim);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-grid: var(--chart-grid);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-serif: var(--font-newsreader), ui-serif, Georgia, "Times New Roman", serif;
