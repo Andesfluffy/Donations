@@ -438,3 +438,59 @@ export async function getPartnerFinancials(partnerId: string): Promise<PartnerFi
     documentCount: documents,
   };
 }
+
+export interface RecurringProgramme {
+  /** Distinct donors with at least one successful recurring gift. */
+  supporterCount: number;
+  /** Total received through recurring gifts, all time. */
+  totalCents: number;
+  /** Received through recurring gifts in the last 30 days. */
+  lastThirtyDaysCents: number;
+  /** Recurring income as a share of all income, 0–1. Null before any income. */
+  shareOfIncome: number | null;
+}
+
+/**
+ * Figures for the monthly giving programme.
+ *
+ * Recurring income is the money that lets us commit to a partner before an
+ * appeal has raised anything, so it is worth stating plainly rather than
+ * asserting that monthly giving "helps us plan".
+ */
+export async function getRecurringProgramme(): Promise<RecurringProgramme> {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+
+  const [donors, recurringTotal, recentTotal, allTotal] = await Promise.all([
+    db.donation.findMany({
+      where: { status: DonationStatus.SUCCEEDED, type: "RECURRING" },
+      distinct: ["donorId"],
+      select: { donorId: true },
+    }),
+    db.donation.aggregate({
+      where: { status: DonationStatus.SUCCEEDED, type: "RECURRING" },
+      _sum: { netCents: true },
+    }),
+    db.donation.aggregate({
+      where: {
+        status: DonationStatus.SUCCEEDED,
+        type: "RECURRING",
+        createdAt: { gte: thirtyDaysAgo },
+      },
+      _sum: { netCents: true },
+    }),
+    db.donation.aggregate({
+      where: { status: DonationStatus.SUCCEEDED },
+      _sum: { netCents: true },
+    }),
+  ]);
+
+  const totalCents = recurringTotal._sum.netCents ?? 0;
+  const allCents = allTotal._sum.netCents ?? 0;
+
+  return {
+    supporterCount: donors.length,
+    totalCents,
+    lastThirtyDaysCents: recentTotal._sum.netCents ?? 0,
+    shareOfIncome: allCents > 0 ? totalCents / allCents : null,
+  };
+}

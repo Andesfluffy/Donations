@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 interface GivePageProps {
-  searchParams: Promise<{ appeal?: string }>;
+  searchParams: Promise<{ appeal?: string; frequency?: string; amount?: string }>;
 }
 
 export default async function GivePage({ searchParams }: GivePageProps) {
@@ -32,6 +32,22 @@ export default async function GivePage({ searchParams }: GivePageProps) {
   // otherwise the form silently designates a gift to nothing.
   const requested = params.appeal;
   const defaultAppealSlug = appeals.some((a) => a.slug === requested) ? requested : undefined;
+
+  // /monthly links here with ?frequency=monthly. Anything else falls back to a
+  // one-off gift rather than trusting the query string.
+  const defaultFrequency = params.frequency === "monthly" ? "monthly" : "one_time";
+
+  // Only honour an amount that is genuinely one of our presets for the chosen
+  // frequency. An arbitrary query value would let a link preselect any figure,
+  // including a misleading one.
+  const presets =
+    defaultFrequency === "monthly"
+      ? siteConfig.suggestedMonthlyAmounts
+      : siteConfig.suggestedAmounts;
+  const requestedAmount = Number(params.amount);
+  const defaultAmountCents = (presets as readonly number[]).includes(requestedAmount)
+    ? requestedAmount
+    : undefined;
 
   return (
     <div className="container-page py-16 md:py-20">
@@ -81,6 +97,8 @@ export default async function GivePage({ searchParams }: GivePageProps) {
           <DonationForm
             appeals={appeals}
             defaultAppealSlug={defaultAppealSlug}
+            defaultFrequency={defaultFrequency}
+            defaultAmountCents={defaultAmountCents}
             currency={siteConfig.defaultCurrency}
             suggestedAmounts={siteConfig.suggestedAmounts}
             suggestedMonthlyAmounts={siteConfig.suggestedMonthlyAmounts}

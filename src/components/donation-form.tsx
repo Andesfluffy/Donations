@@ -16,6 +16,11 @@ export interface AppealOption {
 interface DonationFormProps {
   appeals: AppealOption[];
   defaultAppealSlug?: string;
+  /** Preselects the frequency, so /monthly can hand off without a second click. */
+  defaultFrequency?: Frequency;
+  /** Preselects an amount in minor units. Must be one of the presets for the
+   *  chosen frequency; the page validates that before passing it. */
+  defaultAmountCents?: number;
   currency: string;
   suggestedAmounts: readonly number[];
   suggestedMonthlyAmounts: readonly number[];
@@ -24,21 +29,29 @@ interface DonationFormProps {
   configured: boolean;
 }
 
-type Frequency = "one_time" | "monthly";
+export type Frequency = "one_time" | "monthly";
 
 const GENERAL_FUND = "__general__";
 
 export function DonationForm({
   appeals,
   defaultAppealSlug,
+  defaultFrequency = "one_time",
+  defaultAmountCents,
   currency,
   suggestedAmounts,
   suggestedMonthlyAmounts,
   testMode,
   configured,
 }: DonationFormProps) {
-  const [frequency, setFrequency] = useState<Frequency>("one_time");
-  const [presetCents, setPresetCents] = useState<number | null>(suggestedAmounts[1] ?? null);
+  const [frequency, setFrequency] = useState<Frequency>(defaultFrequency);
+  // The preset must match the frequency it opens on, or a monthly gift starts
+  // preselected at a one-off amount.
+  const [presetCents, setPresetCents] = useState<number | null>(
+    defaultAmountCents ??
+      (defaultFrequency === "monthly" ? suggestedMonthlyAmounts : suggestedAmounts)[1] ??
+      null,
+  );
   const [customAmount, setCustomAmount] = useState("");
   const [appealSlug, setAppealSlug] = useState(defaultAppealSlug ?? GENERAL_FUND);
   const [coverFee, setCoverFee] = useState(true);
