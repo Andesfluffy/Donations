@@ -68,6 +68,16 @@
      overlay instead of dimming it. */
   --scrim: rgb(26 23 20 / 0.55);
 
+  /* Hero. The hero photograph is dark and does not flip with the theme, so the
+     type sitting on it is always light. These are the only tokens on the site
+     that are deliberately identical in light and dark — a theme-reactive ink
+     here would go black-on-black the moment the reader picked light mode. */
+  --hero-ink: #f8f5ef;
+  --hero-ink-muted: #d5cec1;
+  --hero-accent: #d9ae63;
+  --hero-scrim-strong: rgb(12 10 8 / 0.9);
+  --hero-scrim-soft: rgb(12 10 8 / 0.55);
+
   /* Chart series. NOT the UI --primary/--accent: those are chosen for text and
      buttons, and as data marks the deep Marian blue falls outside the OKLCH
      lightness band and under the chroma floor (it reads gray). These steps are
@@ -285,6 +295,10 @@
 
   --color-scrim: var(--scrim);
 
+  --color-hero-ink: var(--hero-ink);
+  --color-hero-ink-muted: var(--hero-ink-muted);
+  --color-hero-accent: var(--hero-accent);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-grid: var(--chart-grid);
@@ -365,6 +379,31 @@
     margin-inline: auto;
     padding-inline: 1.25rem;
     max-width: 75rem;
+  }
+
+  /* Scrim over the full-bleed hero photograph. Narrow screens stack the type
+     over the middle of the frame, so the gradient runs bottom-to-top there;
+     from md up the type moves into the left column and the gradient turns
+     horizontal, which keeps the right-hand two-thirds of the photograph
+     unclouded instead of veiling the whole image. */
+  .hero-scrim {
+    background: linear-gradient(
+      to top,
+      var(--hero-scrim-strong) 0%,
+      var(--hero-scrim-soft) 58%,
+      transparent 100%
+    );
+  }
+
+  @media (min-width: 768px) {
+    .hero-scrim {
+      background: linear-gradient(
+        to right,
+        var(--hero-scrim-strong) 0%,
+        var(--hero-scrim-soft) 52%,
+        transparent 88%
+      );
+    }
   }
 
   @media (min-width: 768px) {

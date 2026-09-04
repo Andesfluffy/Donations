@@ -396,3 +396,45 @@ export async function getMonthlyFlow(months = 12): Promise<MonthlyFlow[]> {
 
   return series;
 }
+
+export interface PartnerFinancials {
+  /** Total sent to this partner, across every appeal. */
+  receivedCents: number;
+  /** Transfers at SENT or beyond. */
+  transferCount: number;
+  /** Distinct appeals this partner has delivered. */
+  campaignCount: number;
+  /** Supporting documents filed against their transfers. */
+  documentCount: number;
+}
+
+/**
+ * What one partner has actually received from us.
+ *
+ * Publishing this per-partner is the point of naming them at all: a reader can
+ * see not just who delivers the work but how much we have entrusted to each.
+ */
+export async function getPartnerFinancials(partnerId: string): Promise<PartnerFinancials> {
+  const [transfers, campaigns, documents] = await Promise.all([
+    db.disbursement.aggregate({
+      where: { partnerId, status: { in: SPENT } },
+      _sum: { amountCents: true },
+      _count: true,
+    }),
+    db.disbursement.findMany({
+      where: { partnerId, status: { in: SPENT } },
+      distinct: ["campaignId"],
+      select: { campaignId: true },
+    }),
+    db.disbursementDocument.count({
+      where: { disbursement: { partnerId, status: { in: SPENT } } },
+    }),
+  ]);
+
+  return {
+    receivedCents: transfers._sum.amountCents ?? 0,
+    transferCount: transfers._count,
+    campaignCount: campaigns.length,
+    documentCount: documents,
+  };
+}

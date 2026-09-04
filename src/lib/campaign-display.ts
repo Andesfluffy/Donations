@@ -1,4 +1,4 @@
-import type { CrisisType, Urgency } from "@/generated/prisma";
+import type { CrisisType, PartnerType, Urgency } from "@/generated/prisma";
 
 /** Display metadata for enum values. Kept out of components so the wording of
  *  a crisis type is decided once, not per-template. */
@@ -20,6 +20,15 @@ export const URGENCY_LABELS: Record<Urgency, string> = {
   CRITICAL: "Critical need",
   HIGH: "Urgent",
   NORMAL: "Ongoing",
+};
+
+/** How a receiving organisation is described where donors can see it. */
+export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
+  CARITAS_NATIONAL: "National Caritas office",
+  DIOCESE: "Diocese",
+  RELIGIOUS_ORDER: "Religious order",
+  PARISH: "Parish network",
+  NGO: "Non-governmental organisation",
 };
 
 export const URGENCY_TONES = {

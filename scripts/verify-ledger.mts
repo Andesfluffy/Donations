@@ -15,9 +15,12 @@ import { config as loadEnv } from "dotenv";
 loadEnv({ path: [".env.local", ".env"], quiet: true });
 
 const { db } = await import("../src/lib/db");
-const { getCampaignFinancials, getOrgFinancials, getCampaignBreakdown } = await import(
-  "../src/lib/finance"
-);
+const {
+  getCampaignFinancials,
+  getOrgFinancials,
+  getCampaignBreakdown,
+  getPartnerFinancials,
+} = await import("../src/lib/finance");
 const { formatMoney } = await import("../src/lib/money");
 
 let failures = 0;
@@ -90,6 +93,17 @@ async function main() {
     const live = await getCampaignFinancials(campaign.id);
     check(`${campaign.slug} · Σ categories`, total, live.disbursedCents);
   }
+
+  // Every disbursement names a partner, so the per-partner totals shown on
+  // /partners must add up to the organisation's total spend. A mismatch means
+  // money left our account without being attributed to a recipient.
+  console.log("\nPartner totals reconcile to organisation spend");
+  const partners = await db.partner.findMany({ select: { id: true } });
+  let partnerSum = 0;
+  for (const partner of partners) {
+    partnerSum += (await getPartnerFinancials(partner.id)).receivedCents;
+  }
+  check("Σ partner received", partnerSum, org.disbursedCents);
 
   console.log("\nSummary");
   console.log(`  received    ${formatMoney(org.raisedCents, "USD")}  (${org.donationCount} gifts)`);
