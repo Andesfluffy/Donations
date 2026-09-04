@@ -13,7 +13,18 @@ function createClient(): PrismaClient {
     throw new Error("DATABASE_URL is not set — copy .env.example to .env.local");
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  /**
+   * Pool size. Ten is right for real Postgres, where pages fire their
+   * independent queries concurrently.
+   *
+   * Set DATABASE_POOL_MAX=1 when pointing at `prisma dev`: that local server is
+   * PGlite, an embedded single-user Postgres, and it drops the connection if a
+   * second one is opened. That is a limitation of the dev database only — do
+   * not serialise deployed environments to accommodate it.
+   */
+  const max = Number(process.env.DATABASE_POOL_MAX ?? 10);
+
+  const adapter = new PrismaPg({ connectionString, max });
 
   return new PrismaClient({
     adapter,

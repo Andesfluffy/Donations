@@ -69,6 +69,23 @@ only for hairline accents.
 Money is rendered through `src/lib/money.ts` and always carries the `.tabular`
 class so digits do not shift as totals update.
 
+## Local database
+
+There is no Docker or local Postgres on this machine. Prisma 7 ships one:
+
+```
+npx prisma dev --name ccr --detach   # starts a local Postgres, prints its URL
+npm run db:migrate
+npm run db:seed
+npx tsx scripts/verify-ledger.mts    # proves the derived figures reconcile
+```
+
+That server is PGlite (embedded Postgres, WASM) and accepts only **one
+connection at a time**, so `.env.local` sets `DATABASE_POOL_MAX=1`. Pages fire
+their queries with `Promise.all`, which is correct against real Postgres and
+must not be serialised to suit the dev server — leave `DATABASE_POOL_MAX`
+unset in deployed environments.
+
 ## Commands
 
 ```

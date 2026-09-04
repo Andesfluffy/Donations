@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
 import { ButtonLink } from "@/components/ui/button";
@@ -10,12 +9,7 @@ import { NAV_LINKS } from "@/components/site-header";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
   const panelRef = useRef<HTMLDivElement>(null);
-
-  // Navigating should dismiss the menu, otherwise it covers the page you just
-  // asked for.
-  useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -84,6 +78,7 @@ export function MobileNav() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  onClick={() => setOpen(false)}
                   className="rounded-md px-3 py-3 text-lg text-ink transition-colors hover:bg-surface-sunken"
                 >
                   {link.label}
@@ -92,7 +87,7 @@ export function MobileNav() {
             </nav>
 
             <div className="mt-auto border-t border-line p-4">
-              <ButtonLink href="/give" size="lg" block>
+              <ButtonLink href="/give" size="lg" block onClick={() => setOpen(false)}>
                 Give now
               </ButtonLink>
             </div>
