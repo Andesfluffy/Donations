@@ -43,10 +43,14 @@ const FOOTER_SECTIONS = [
 
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-line bg-surface-sunken">
-      <div className="container-page py-14">
-        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-6">
-          <div className="lg:col-span-2">
+    <footer className="mt-16 border-t border-line bg-surface-sunken md:mt-24">
+      <div className="container-page py-10 md:py-14">
+        {/* Four stacked link lists make the footer taller than most phone
+            screens, so the sections pair up into two columns below md and the
+            brand block spans them. Nothing is hidden or collapsed — footer
+            links are the fallback navigation and must stay reachable. */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-9 md:grid-cols-4 md:gap-10 lg:grid-cols-6">
+          <div className="col-span-2 md:col-span-4 lg:col-span-2">
             <p className="font-serif text-lg font-semibold text-ink">{siteConfig.name}</p>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-muted">
               {siteConfig.description}
@@ -79,8 +83,8 @@ export function SiteFooter() {
 
         {/* Required disclosure block. Donors are entitled to know who is
             actually receiving their money and under what registration. */}
-        <div className="mt-12 border-t border-line pt-8">
-          <div className="flex flex-col gap-4 text-xs leading-relaxed text-ink-subtle sm:flex-row sm:items-end sm:justify-between">
+        <div className="mt-10 border-t border-line pt-6 md:mt-12 md:pt-8">
+          <div className="flex flex-col gap-3 text-xs leading-relaxed text-ink-subtle sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <address className="not-italic">
               <span className="block font-medium text-ink-muted">
                 {siteConfig.legal.entityName}

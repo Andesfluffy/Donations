@@ -1,144 +1,94 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, HandCoins, ScrollText, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
+import { AboutHero } from "@/components/about-hero";
 import { ButtonLink } from "@/components/ui/button";
 import { db } from "@/lib/db";
-import { getOrgFinancials } from "@/lib/finance";
-import { formatCount, formatMoneyCompact } from "@/lib/money";
+import { formatCount } from "@/lib/money";
 import { hasPlaceholderLegalDetails, siteConfig } from "@/lib/site-config";
 
-// The page states live totals, so it must not be served from cache.
+// Reads the partner roster live. A cached count would quietly go stale the
+// first time a partner is added.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "About us",
   description:
-    "Who we are, who receives the money, and the controls that make the published ledger hard to fake.",
+    "We fund Catholic institutions already working where the emergency is. Who they are, how we are kept honest, and how to reach us.",
 };
 
 export default async function AboutPage() {
-  const [org, partnerCountries, campaignCount, documentCount] = await Promise.all([
-    getOrgFinancials(),
-    // Grouping rather than counting gives the number of partners and the number
-    // of countries they work in from a single query.
-    db.partner.groupBy({ by: ["countryCode"], _count: true }),
-    db.campaign.count({ where: { status: { in: ["ACTIVE", "FUNDED", "CLOSED"] } } }),
-    db.disbursementDocument.count(),
-  ]);
+  // Grouping rather than counting gives the number of partners and the number
+  // of countries they work in from a single query.
+  const partnerCountries = await db.partner.groupBy({
+    by: ["countryCode"],
+    _count: true,
+  });
 
-  const currency = siteConfig.defaultCurrency;
-  const detailsPending = hasPlaceholderLegalDetails();
   const partnerCount = partnerCountries.reduce((total, row) => total + row._count, 0);
+  const detailsPending = hasPlaceholderLegalDetails();
 
   return (
     <>
+      <AboutHero />
+
       {/* ------------------------------------------------------------------ */}
-      {/* Hero — deliberately typographic. The home page carries the one      */}
-      {/* photograph on the site; a second full-bleed image here would be     */}
-      {/* decoration, and this page's argument is made in words.             */}
+      {/* Who receives the money                                             */}
       {/* ------------------------------------------------------------------ */}
-      <section className="border-b border-line bg-surface">
-        <div className="container-page py-20 md:py-28">
-          <div className="max-w-3xl">
-            <p className="flex items-center gap-3 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-season">
-              <span aria-hidden="true" className="h-px w-8 bg-season" />
-              About us
+      <section aria-labelledby="model-heading" className="container-page py-20">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-20">
+          <div className="max-w-2xl">
+            <h2
+              id="model-heading"
+              className="font-serif text-3xl font-semibold tracking-tight text-ink md:text-4xl"
+            >
+              Who receives the money
+            </h2>
+            <p className="mt-5 text-lg leading-relaxed text-ink-muted">
+              We are a funding body, not a field operation. Gifts made here go to
+              Catholic institutions that were in the community before the
+              emergency and will still be there long after the news crews have
+              left: a national Caritas office, a diocese, a religious order, a
+              parish network.
             </p>
-
-            <h1 className="mt-6 font-serif text-[2.5rem] leading-[1.05] font-semibold tracking-tight text-ink md:text-6xl">
-              A relief fund that shows its books.
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-muted">
-              {siteConfig.name} funds Catholic organisations already working in
-              communities facing conflict, famine and disaster. Every appeal
-              makes that promise; ours publishes the ledger that proves it.
+            <p className="mt-4 leading-relaxed text-ink-muted">
+              That is the whole reason this model can work. They already know
+              which families are missing from the food queue, and they answer to
+              neighbours they will see again next week. We check who they are
+              before the first transfer goes out, publish the date we did it, and
+              name them on every entry in the ledger.
             </p>
-
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-              <ButtonLink href="/give" size="lg">
-                Make a donation
-              </ButtonLink>
-              <ButtonLink href="/transparency/ledger" variant="outline" size="lg">
-                Read the ledger
-              </ButtonLink>
-            </div>
           </div>
+
+          <aside className="lg:pt-3">
+            {partnerCount > 0 && (
+              <p className="border-l-2 border-season pl-5 text-ink-muted">
+                <span className="block font-serif text-3xl font-semibold text-ink">
+                  {formatCount(partnerCount)}{" "}
+                  {partnerCount === 1 ? "organisation" : "organisations"}
+                </span>
+                <span className="mt-1 block text-sm">
+                  currently receiving funds, in {formatCount(partnerCountries.length)}{" "}
+                  {partnerCountries.length === 1 ? "country" : "countries"}
+                </span>
+              </p>
+            )}
+            <Link
+              href="/partners"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary-hover"
+            >
+              Every partner we fund
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </aside>
         </div>
       </section>
 
-      {/* Live totals — every figure derived from lib/finance.ts ------------ */}
-      <section aria-labelledby="scale-heading" className="border-b border-line bg-bg">
-        <h2 id="scale-heading" className="sr-only">
-          The work so far
-        </h2>
-        <div className="container-page grid sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile
-            label="Received"
-            value={formatMoneyCompact(org.raisedCents, currency)}
-            note={`${formatCount(org.donationCount)} gifts`}
-          />
-          <StatTile
-            label="Delivered to partners"
-            value={formatMoneyCompact(org.disbursedCents, currency)}
-            note={
-              org.disbursedRatio === null
-                ? "No funds yet"
-                : `${Math.round(org.disbursedRatio * 100)}% of income`
-            }
-          />
-          <StatTile
-            label="Partner organisations"
-            value={formatCount(partnerCount)}
-            note={`In ${formatCount(partnerCountries.length)} ${
-              partnerCountries.length === 1 ? "country" : "countries"
-            }`}
-          />
-          <StatTile
-            label="Appeals opened"
-            value={formatCount(campaignCount)}
-            note={`${formatCount(documentCount)} documents on file`}
-          />
-        </div>
-      </section>
-
-      {/* What happens to a gift -------------------------------------------- */}
-      <section aria-labelledby="chain-heading" className="container-page py-20">
-        <div className="max-w-2xl">
-          <h2
-            id="chain-heading"
-            className="font-serif text-3xl font-semibold tracking-tight text-ink md:text-4xl"
-          >
-            What happens to a gift
-          </h2>
-          <p className="mt-3 text-ink-muted">
-            Three steps, each leaving a record you can read back.
-          </p>
-        </div>
-
-        <div className="mt-12 grid gap-8 md:grid-cols-3">
-          <Card
-            icon={<HandCoins className="h-5 w-5" aria-hidden="true" />}
-            title="You give to a named appeal"
-            body="The gift is recorded only once Stripe confirms it settled, so the figure shown as received is money genuinely in the account, after card fees."
-          />
-          <Card
-            icon={<Users className="h-5 w-5" aria-hidden="true" />}
-            title="A vetted partner receives it"
-            body="Funds go to a Caritas office, diocese, religious order or parish network already working in the community. We publish who they are and when we checked them."
-            link={{ href: "/partners", label: "Our partners" }}
-          />
-          <Card
-            icon={<ScrollText className="h-5 w-5" aria-hidden="true" />}
-            title="The transfer is published"
-            body="Date, amount, recipient and purpose, with the bank reference an auditor would need — and the invoices and field reports filed against it."
-            link={{ href: "/transparency/ledger", label: "The full ledger" }}
-          />
-        </div>
-      </section>
-
-      {/* Governance --------------------------------------------------------- */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Governance — the mechanisms, not the promise. The home page already */}
+      {/* makes the promise; this section is what enforces it.               */}
+      {/* ------------------------------------------------------------------ */}
       <section
         aria-labelledby="governance-heading"
         id="governance"
@@ -150,33 +100,35 @@ export default async function AboutPage() {
               id="governance-heading"
               className="font-serif text-3xl font-semibold tracking-tight text-ink md:text-4xl"
             >
-              Why you do not have to take our word for it
+              How we are kept honest
             </h2>
-            <p className="mt-4 text-lg leading-relaxed text-ink-muted">
-              Transparency that depends on our good behaviour is not
-              transparency. These are the controls that make the published
-              record difficult to quietly rewrite.
+            <p className="mt-5 text-lg leading-relaxed text-ink-muted">
+              A commitment to transparency is worth exactly what the mechanism
+              behind it is worth. Ours is built so that breaking the promise
+              would take more effort than keeping it.
             </p>
           </div>
 
           <dl className="mt-12 grid gap-x-12 gap-y-8 md:grid-cols-2">
-            <Control title="Income is recorded by the processor, not by us">
-              Only a confirmed Stripe webhook can create a donation. No member of
-              staff or admin screen can add income, so the received total cannot
-              be inflated beyond what actually settled.
+            <Control title="Income is recorded by the payment processor">
+              Only a confirmed webhook from Stripe can create a donation record.
+              No member of staff, admin screen or script is able to add one, so
+              income cannot be written into the books by hand.
             </Control>
             <Control title="Spending is append-only">
-              A published transfer is never edited or deleted. Corrections are
-              new entries pointing at the ones they supersede, and both stay
-              visible.
+              A published transfer is never edited or deleted. A correction is a
+              new entry pointing at the one it supersedes, and both stay visible
+              — so a copy of the ledger taken last month still reconciles with
+              the one published today.
             </Control>
-            <Control title="Overhead is a line, not a footnote">
-              Administration sits in the same ledger as food and medicine, and is
-              published as a share of everything we spend.
+            <Control title="Every administrative action is logged">
+              Changes to appeals, transfers and documents are recorded with the
+              account that made them and the values before and after.
             </Control>
-            <Control title="Impact claims cite a source or are not shown">
-              An outcome is published only with a verification date and the
-              source it came from. Unverified figures are withheld.
+            <Control title="Outcomes are withheld until verified">
+              A stated result is published only once it carries a verification
+              date and the source it came from. Unverified figures are held back
+              rather than rounded up.
             </Control>
           </dl>
 
@@ -190,24 +142,30 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      {/* Contact ------------------------------------------------------------ */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Contact                                                            */}
+      {/* ------------------------------------------------------------------ */}
       <section
         aria-labelledby="contact-heading"
         id="contact"
         className="container-page scroll-mt-24 py-20"
       >
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-16">
-          <div>
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-20">
+          <div className="max-w-2xl">
             <h2
               id="contact-heading"
               className="font-serif text-3xl font-semibold tracking-tight text-ink md:text-4xl"
             >
               Get in touch
             </h2>
-            <p className="mt-4 max-w-xl text-lg leading-relaxed text-ink-muted">
+            <p className="mt-5 text-lg leading-relaxed text-ink-muted">
               If a figure here does not add up, tell us. We will either explain
               it or correct it in public, with the original entry left standing.
               A published mistake is less damaging than a quiet one.
+            </p>
+            <p className="mt-4 leading-relaxed text-ink-muted">
+              We also want to hear from organisations working in an emergency we
+              have not opened an appeal for.
             </p>
             <ButtonLink href="/appeals" className="mt-8">
               See the current appeals
@@ -215,7 +173,7 @@ export default async function AboutPage() {
             </ButtonLink>
           </div>
 
-          <div className="lg:pt-2">
+          <aside className="lg:pt-3">
             <h3 className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-ink-subtle">
               Contact details
             </h3>
@@ -253,54 +211,10 @@ export default async function AboutPage() {
                 </div>
               </address>
             )}
-          </div>
+          </aside>
         </div>
       </section>
     </>
-  );
-}
-
-/** Same tile as the home page's totals row, so the two read as one system. */
-function StatTile({ label, value, note }: { label: string; value: string; note: string }) {
-  return (
-    <div className="border-b border-line py-8 sm:border-r sm:px-6 sm:first:pl-0 sm:last:border-r-0 lg:py-10">
-      <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-ink-subtle">
-        {label}
-      </p>
-      <p className="mt-2 font-serif text-3xl font-semibold text-ink lg:text-4xl">{value}</p>
-      <p className="mt-1 text-sm text-ink-muted">{note}</p>
-    </div>
-  );
-}
-
-function Card({
-  icon,
-  title,
-  body,
-  link,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-  link?: { href: string; label: string };
-}) {
-  return (
-    <div>
-      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-accent">
-        {icon}
-      </span>
-      <h3 className="mt-4 font-serif text-lg font-semibold text-ink">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-ink-muted">{body}</p>
-      {link && (
-        <Link
-          href={link.href}
-          className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary-hover"
-        >
-          {link.label}
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
-      )}
-    </div>
   );
 }
 
