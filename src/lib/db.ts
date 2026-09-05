@@ -41,8 +41,42 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const db = globalForPrisma.prisma ?? createClient();
+let client: PrismaClient | undefined;
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
+function getClient(): PrismaClient {
+  if (client) return client;
+
+  client = globalForPrisma.prisma ?? createClient();
+
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = client;
+  }
+
+  return client;
 }
+
+/**
+ * Built on first query rather than on import.
+ *
+ * `next build` imports every route module to collect its config, so a client
+ * constructed at module scope made DATABASE_URL a *build-time* requirement: a
+ * deploy without that variable failed in "Collecting page data" with a stack
+ * trace into this file, rather than the app starting and reporting a missing
+ * database when a request actually needed one. Nothing queries during a build
+ * — every page reading the database is force-dynamic — so deferring the
+ * connection keeps builds independent of runtime secrets without changing when
+ * a genuinely missing DATABASE_URL is noticed.
+ */
+export const db = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    // Answer promise-unwrapping probes without connecting: `await` on any
+    // value holding this object would otherwise construct a client to look
+    // for `then`.
+    if (property === "then") return undefined;
+
+    const instance = getClient();
+    const value = Reflect.get(instance, property, instance);
+
+    return typeof value === "function" ? value.bind(instance) : value;
+  },
+});
