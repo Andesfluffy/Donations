@@ -7,6 +7,41 @@
  * placeholders rather than plausible-looking invented values — a fake charity
  * number on a live donation page is fraud, not a typo.
  */
+/**
+ * Absolute origin the site is served from.
+ *
+ * Resolved through a function rather than `process.env.X ?? fallback` because
+ * `??` only rejects null and undefined. A variable that is *defined but empty*
+ * — which is what an unfilled project setting on a host gives you — passes
+ * straight through it. That empty string reached `new URL("")` and failed the
+ * build, and would have done quieter damage had it not: rootless links in the
+ * sitemap, and an invalid return URL on the Stripe checkout session.
+ *
+ * VERCEL_URL covers preview deployments, which have no stable custom domain.
+ * It carries no scheme, so one is added. It is server-only, which is fine —
+ * nothing client-side imports this module.
+ */
+function resolveSiteUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const preview = process.env.VERCEL_URL?.trim();
+
+  const candidate =
+    configured || (preview && `https://${preview}`) || "http://localhost:3000";
+
+  try {
+    // Normalised so callers can append paths without doubling the separator.
+    return new URL(candidate).href.replace(/\/$/, "");
+  } catch {
+    // A malformed value is a deployment mistake. Warn rather than throw: this
+    // runs during `next build`, and failing the build over it would leave the
+    // site down instead of merely mislinked.
+    console.warn(
+      `[site-config] NEXT_PUBLIC_SITE_URL is not a valid URL (${JSON.stringify(candidate)}) — falling back to localhost. Absolute links and Stripe return URLs will be wrong until it is set.`,
+    );
+    return "http://localhost:3000";
+  }
+}
+
 export const siteConfig = {
   name: "Catholic Crisis Relief",
   shortName: "CCR",
@@ -14,7 +49,7 @@ export const siteConfig = {
   description:
     "Emergency appeals for communities facing conflict, famine and disaster — with a published ledger showing exactly where every donation went.",
 
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  url: resolveSiteUrl(),
 
   /** TODO: replace before accepting live donations. */
   legal: {

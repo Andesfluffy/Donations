@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Newsreader } from "next/font/google";
 
 import { getLiturgicalSeason } from "@/lib/liturgical";
+import { siteConfig } from "@/lib/site-config";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import "./globals.css";
@@ -24,7 +25,9 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  // siteConfig.url is already resolved and validated; reading the environment
+  // variable again here is how the two got to disagree about an empty value.
+  metadataBase: new URL(siteConfig.url),
   title: {
     default: "Catholic Crisis Relief — Give where it is needed most",
     template: "%s · Catholic Crisis Relief",
